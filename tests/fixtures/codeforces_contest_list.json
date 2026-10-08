@@ -1,0 +1,45 @@
+{
+  "status": "OK",
+  "result": [
+    {
+      "id": 2148,
+      "name": "Codeforces Round 1048 (Div. 2)",
+      "type": "CF",
+      "phase": "BEFORE",
+      "frozen": false,
+      "durationSeconds": 7200,
+      "startTimeSeconds": 1792000000,
+      "relativeTimeSeconds": -640000
+    },
+    {
+      "id": 2149,
+      "name": "Codeforces Round 1049 (Div. 1)",
+      "type": "CF",
+      "phase": "BEFORE",
+      "frozen": false,
+      "durationSeconds": 9000,
+      "startTimeSeconds": 1792500000,
+      "relativeTimeSeconds": -1140000
+    },
+    {
+      "id": 2001,
+      "name": "Codeforces Round 970 (Div. 2)",
+      "type": "CF",
+      "phase": "FINISHED",
+      "frozen": false,
+      "durationSeconds": 7200,
+      "startTimeSeconds": 1721120700,
+      "relativeTimeSeconds": 70200000
+    },
+    {
+      "id": 1996,
+      "name": "Educational Codeforces Round 168 (Rated for Div. 2)",
+      "type": "ICPC",
+      "phase": "FINISHED",
+      "frozen": false,
+      "durationSeconds": 7200,
+      "startTimeSeconds": 1720515900,
+      "relativeTimeSeconds": 70800000
+    }
+  ]
+}

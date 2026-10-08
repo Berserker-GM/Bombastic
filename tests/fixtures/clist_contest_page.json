@@ -1,0 +1,87 @@
+{
+  "meta": {
+    "estimated_count": 1,
+    "limit": 2,
+    "offset": 0,
+    "previous": null,
+    "total_count": null,
+    "next": "/api/v4/contest/?username=REDACTED&api_key=REDACTED&upcoming=true&order_by=start&limit=2&offset=2"
+  },
+  "objects": [
+    {
+      "duration": 31536000,
+      "end": "2026-11-13T00:00:00",
+      "event": "Snake3D",
+      "host": "datsteam.dev",
+      "href": "https://devteam.games/events?id=019a7c9d-20a5-7c50-8d28-4914e8205b75",
+      "id": 63529573,
+      "n_problems": null,
+      "n_statistics": null,
+      "parsed_at": null,
+      "problems": null,
+      "resource": "datsteam.dev",
+      "resource_id": 174,
+      "start": "2025-11-13T00:00:00"
+    },
+    {
+      "duration": 19808447,
+      "end": "2026-11-09T23:59:00",
+      "event": "ARC Prize 2026 - Paper Track [artificial intelligence, general knowledge and reasoning]",
+      "host": "kaggle.com",
+      "href": "https://www.kaggle.com/competitions/arc-prize-2026-paper-track",
+      "id": 66453358,
+      "n_problems": null,
+      "n_statistics": null,
+      "parsed_at": null,
+      "problems": null,
+      "resource": "kaggle.com",
+      "resource_id": 74,
+      "start": "2026-03-25T17:38:13"
+    },
+    {
+      "duration": 9000,
+      "end": "2099-06-01T17:00:00",
+      "event": "CodeChef Starters 200",
+      "host": "codechef.com",
+      "href": "https://www.codechef.com/START200",
+      "id": 9001,
+      "n_problems": null,
+      "n_statistics": null,
+      "parsed_at": null,
+      "problems": null,
+      "resource": "codechef.com",
+      "resource_id": 9001,
+      "start": "2099-06-01T14:30:00"
+    },
+    {
+      "duration": 6000,
+      "end": "2099-06-03T13:40:00",
+      "event": "AtCoder Beginner Contest 400",
+      "host": "atcoder.jp",
+      "href": "https://atcoder.jp/contests/abc400",
+      "id": 9002,
+      "n_problems": null,
+      "n_statistics": null,
+      "parsed_at": null,
+      "problems": null,
+      "resource": "atcoder.jp",
+      "resource_id": 9002,
+      "start": "2099-06-03T12:00:00"
+    },
+    {
+      "duration": 5400,
+      "end": "2099-06-04T04:00:00",
+      "event": "Weekly Contest 500",
+      "host": "leetcode.com",
+      "href": "https://leetcode.com/contest/weekly-contest-500",
+      "id": 9003,
+      "n_problems": null,
+      "n_statistics": null,
+      "parsed_at": null,
+      "problems": null,
+      "resource": "leetcode.com",
+      "resource_id": 9003,
+      "start": "2099-06-04T02:30:00"
+    }
+  ]
+}

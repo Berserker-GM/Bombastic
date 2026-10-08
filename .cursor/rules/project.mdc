@@ -1,0 +1,13 @@
+---
+description: Project rules for Opportunity & Deadline Radar
+alwaysApply: true
+---
+
+- Read docs/SPEC.md before any task; it is the source of truth for schema and behavior.
+- Work only on the task in the current prompt. Do not add features, refactor unrelated files, or change the stack.
+- Every new module needs pytest tests. Collectors must be tested against saved fixture files in tests/fixtures/, never live network.
+- Run `make test` and `make lint` before saying a task is done, and paste the output.
+- No secrets in code. Everything via env vars.
+- Prefer small pure functions. Type hints everywhere.
+- Never guess data. Unknown stays null/unknown. A failing source is an error result, never an empty list.
+- If a requirement is ambiguous, ask me instead of guessing.
