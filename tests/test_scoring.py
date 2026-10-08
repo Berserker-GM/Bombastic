@@ -657,6 +657,45 @@ def test_low_confidence_event_is_shown_with_low_label(session: Session) -> None:
     assert feed.counts["new"] == 1
 
 
+def test_past_events_appear_only_when_saved(session: Session) -> None:
+    source = _source(session)
+    _save_prefs(session, contest_platforms=("codeforces",), modes=(), locations=())
+    _persist(
+        session,
+        source,
+        title="Old Cup",
+        category=EventCategory.CONTEST,
+        tags=["codeforces"],
+        start_at=NOW - timedelta(days=30),
+        url="https://codeforces.com/contest/old",
+        lifecycle=Lifecycle.UPCOMING,
+    )
+    saved = _persist(
+        session,
+        source,
+        title="Saved Old Cup",
+        category=EventCategory.CONTEST,
+        tags=["codeforces"],
+        start_at=NOW - timedelta(days=30),
+        url="https://codeforces.com/contest/saved",
+        fingerprint="saved-old",
+        lifecycle=Lifecycle.UPCOMING,
+    )
+    _state(session, saved, UserState.SAVED)
+    session.flush()
+
+    feed = build_feed(session, USER, NOW)
+
+    assert "Old Cup" not in _titles(feed)
+    assert [item.title for item in feed.saved] == ["Saved Old Cup"]
+    assert feed.important_updates == []
+    assert feed.deadlines_soon == []
+    assert feed.new_opportunities == []
+    assert feed.todays_contests == []
+    assert feed.college == []
+    assert feed.hackathons == []
+
+
 def test_minor_only_change_is_not_an_important_update(session: Session) -> None:
     source = _source(session)
     _save_prefs(session, student_only=False, modes=(), locations=())

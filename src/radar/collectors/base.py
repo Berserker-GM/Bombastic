@@ -63,7 +63,8 @@ class Collector(ABC):
         try:
             events = await self.fetch()
         except httpx.HTTPStatusError as exc:
-            if exc.response.status_code >= 500:
+            status_code = exc.response.status_code
+            if status_code >= 500 or status_code in (403, 429):
                 return _failure("unreachable", exc)
             return _failure("malformed", exc)
         except httpx.TransportError as exc:

@@ -22,6 +22,7 @@ from radar.models import (
     SourceResult,
 )
 from radar.pipeline.ingest import ingest, ingest_run
+from radar.pipeline.scoring import build_feed
 
 OCT_15 = datetime(2026, 10, 15, tzinfo=UTC)
 OCT_20 = datetime(2026, 10, 20, tzinfo=UTC)
@@ -120,6 +121,55 @@ def test_identical_reingest_is_unchanged(session: Session) -> None:
     for event in second.unchanged:
         assert event.last_seen_at > datetime(2020, 1, 1, tzinfo=UTC)
         assert event.first_seen_at == first_seen[event.id]
+
+
+def test_creation_is_not_an_important_update(session: Session) -> None:
+    source = _source(session)
+    now = datetime(2026, 10, 1, tzinfo=UTC)
+    raw = _raw(
+        title="Notice",
+        category=EventCategory.COLLEGE,
+        registration_deadline=OCT_15,
+    )
+    ingest(session, source, [raw])
+
+    assert build_feed(session, "user-1", now).important_updates == []
+
+    ingest(
+        session,
+        source,
+        [
+            _raw(
+                title="Notice",
+                category=EventCategory.COLLEGE,
+                registration_deadline=OCT_20,
+            )
+        ],
+    )
+    updates = build_feed(session, "user-1", now).important_updates
+
+    assert len(updates) == 1
+    assert updates[0].diff == "registration_deadline: Oct 15 -> Oct 20"
+
+
+def test_undated_item_matches_on_fingerprint(session: Session) -> None:
+    source = _source(session)
+    raw = _raw(
+        title="Undated Notice",
+        category=EventCategory.COLLEGE,
+        external_id=None,
+        start_at=None,
+        registration_deadline=None,
+    )
+
+    first = ingest(session, source, [raw])
+    second = ingest(session, source, [raw])
+
+    assert len(first.new) == 1
+    assert second.new == []
+    assert second.changed == []
+    assert len(second.unchanged) == 1
+    assert _count(session, Event) == 1
 
 
 def test_deadline_change_is_one_important_version(session: Session) -> None:

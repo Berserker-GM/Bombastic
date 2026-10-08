@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     clist_api_key: str | None = None
     clist_username: str | None = None
+    google_token_path: str = "token.json"
 
 
 def get_settings() -> Settings:

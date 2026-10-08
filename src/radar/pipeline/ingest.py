@@ -192,7 +192,14 @@ def _insert(
     blank = dict.fromkeys(TRACKED_FIELDS)
     changed_fields = _diff(blank, snapshot)
     session.add(event)
-    _add_version(session, event, now, changed_fields, snapshot)
+    _add_version(
+        session,
+        event,
+        now,
+        changed_fields,
+        snapshot,
+        importance=Importance.MINOR,
+    )
     session.flush()
     result.new.append(event)
 
@@ -236,13 +243,17 @@ def _add_version(
     now: datetime,
     changed_fields: dict[str, list[Any]],
     snapshot: dict[str, Any],
+    *,
+    importance: Importance | None = None,
 ) -> None:
     session.add(
         EventVersion(
             event=event,
             seen_at=now,
             changed_fields=changed_fields,
-            importance=_importance(changed_fields),
+            importance=(
+                _importance(changed_fields) if importance is None else importance
+            ),
             snapshot=snapshot,
         )
     )
@@ -288,6 +299,10 @@ def _closest(candidates: list[Event], raw: RawEvent) -> Event | None:
 
 
 def _dates_within_window(event: Event, raw: RawEvent) -> bool:
+    event_dated = _has_match_date(event.start_at, event.registration_deadline)
+    raw_dated = _has_match_date(raw.start_at, raw.registration_deadline)
+    if not event_dated and not raw_dated:
+        return True
     checks = [
         _within_window(left, right)
         for left, right in (
@@ -297,6 +312,10 @@ def _dates_within_window(event: Event, raw: RawEvent) -> bool:
         if left is not None and right is not None
     ]
     return bool(checks) and all(checks)
+
+
+def _has_match_date(start_at: datetime | None, deadline: datetime | None) -> bool:
+    return start_at is not None or deadline is not None
 
 
 def _within_window(left: datetime, right: datetime) -> bool:
@@ -312,6 +331,8 @@ def _closeness(event: Event, raw: RawEvent) -> float:
         )
         if left is not None and right is not None
     ]
+    if not deltas:
+        return 0.0
     return min(deltas)
 
 

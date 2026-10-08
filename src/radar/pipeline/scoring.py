@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from radar.models import Event, EventVersion, Importance, UserEventState, UserPrefs
-from radar.models.enums import EventCategory, EventMode, Urgency, UserState
+from radar.models.enums import EventCategory, EventMode, Lifecycle, Urgency, UserState
 from radar.pipeline.ingest import IMPORTANT_FIELDS
 
 # Tune these. Relevance never folds in urgency or confidence.
@@ -217,7 +217,7 @@ def build_feed(session: Session, user_id: str, now: datetime) -> Feed:
         item = _feed_item(event, scored, state, versions.get(event.id, []), moment)
         if is_saved:
             saved.append(item)
-        if scored.hidden:
+        if scored.hidden or _closed(event, moment):
             continue
         if item.important_unseen:
             important_updates.append(item)
@@ -260,6 +260,13 @@ def build_feed(session: Session, user_id: str, now: datetime) -> Feed:
             "saved": len(saved),
         },
     )
+
+
+def _closed(event: Event, now: datetime) -> bool:
+    if event.lifecycle in (Lifecycle.COMPLETED, Lifecycle.CANCELLED):
+        return True
+    key = key_datetime(event)
+    return key is not None and key < now
 
 
 def prefs_from_mapping(raw: dict[str, Any]) -> Prefs:

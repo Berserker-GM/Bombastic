@@ -1,6 +1,7 @@
 import asyncio
 
 import httpx
+import pytest
 
 from radar.collectors.base import Collector, RawEvent
 from radar.models.enums import EventCategory
@@ -36,6 +37,20 @@ def test_empty_without_min_expected_is_ok() -> None:
     assert result.status == "ok"
     assert result.events == []
     assert result.error is None
+
+
+@pytest.mark.parametrize("status_code", [403, 429])
+def test_forbidden_and_rate_limit_are_unreachable(status_code: int) -> None:
+    class _Denied(Collector):
+        async def fetch(self) -> list[RawEvent]:
+            request = httpx.Request("GET", "https://example.com/contests")
+            response = httpx.Response(status_code, request=request)
+            raise httpx.HTTPStatusError("nope", request=request, response=response)
+
+    result = asyncio.run(_Denied().collect())
+
+    assert result.status == "unreachable"
+    assert result.events == []
 
 
 def test_timeout_is_unreachable() -> None:
