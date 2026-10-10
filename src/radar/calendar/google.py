@@ -1,13 +1,17 @@
 """Google Calendar sync. One Google event per user and Event."""
 
+import json
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,7 +30,7 @@ REMINDERS: dict[str, Any] = {
 }
 
 _SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
-_CALENDAR_ID = "primary"
+_GONE = frozenset({404, 410})
 _POPUP_KEYS = {
     EventCategory.CONTEST: "contest_popup_minutes",
     EventCategory.COLLEGE: "college_popup_minutes",
@@ -44,6 +48,10 @@ class CalendarService(Protocol):
     def delete(self, session: Session, user_id: str, event: Event) -> None: ...
 
 
+class CalendarAuthError(Exception):
+    """The stored Google token cannot be refreshed."""
+
+
 class GoogleCalendarClient(Protocol):
     def insert(self, body: dict[str, Any]) -> str: ...
 
@@ -55,14 +63,14 @@ class GoogleCalendarClient(Protocol):
 class GoogleApiEvents:
     """Adapter over the discovery client's events resource."""
 
-    def __init__(self, resource: Any, calendar_id: str = _CALENDAR_ID) -> None:
+    def __init__(self, resource: Any, calendar_id: str = "primary") -> None:
         self._resource = resource
-        self._calendar_id = calendar_id
+        self.calendar_id = calendar_id
 
     def insert(self, body: dict[str, Any]) -> str:
         created = (
             self._resource.events()
-            .insert(calendarId=self._calendar_id, body=body)
+            .insert(calendarId=self.calendar_id, body=body)
             .execute()
         )
         event_id = created.get("id")
@@ -74,7 +82,7 @@ class GoogleApiEvents:
         (
             self._resource.events()
             .update(
-                calendarId=self._calendar_id,
+                calendarId=self.calendar_id,
                 eventId=google_event_id,
                 body=body,
             )
@@ -84,20 +92,31 @@ class GoogleApiEvents:
     def delete(self, google_event_id: str) -> None:
         (
             self._resource.events()
-            .delete(calendarId=self._calendar_id, eventId=google_event_id)
+            .delete(calendarId=self.calendar_id, eventId=google_event_id)
             .execute()
         )
 
 
 class GoogleCalendarService:
-    def __init__(self, client: GoogleCalendarClient) -> None:
+    def __init__(
+        self,
+        client: GoogleCalendarClient,
+        *,
+        now: Callable[[], datetime] | None = None,
+    ) -> None:
         self._client = client
+        self._now = now or (lambda: datetime.now(UTC))
 
     def upsert_event(
         self, session: Session, user_id: str, event: Event
     ) -> CalendarLink | None:
-        if _calendar_mode(session, user_id) != "auto":
-            return _existing_link(session, user_id, event.id)
+        # calendar_mode gates creation only. An event the user already added
+        # keeps syncing when its content changes.
+        if (
+            _existing_link(session, user_id, event.id) is None
+            and _calendar_mode(session, user_id) != "auto"
+        ):
+            return None
         return self._sync(session, user_id, event)
 
     def add_to_calendar(
@@ -112,13 +131,19 @@ class GoogleCalendarService:
         link = _existing_link(session, user_id, event.id)
         if link is None:
             return
-        self._client.delete(link.google_event_id)
+        try:
+            self._client.delete(link.google_event_id)
+        except HttpError as exc:
+            if exc.status_code not in _GONE:
+                raise
         session.delete(link)
         session.flush()
 
     def _sync(
         self, session: Session, user_id: str, event: Event
     ) -> CalendarLink | None:
+        if not _is_current(event, self._now()):
+            return None
         link = _existing_link(session, user_id, event.id)
         if link is not None and link.last_synced_hash == event.content_hash:
             return link
@@ -133,7 +158,12 @@ class GoogleCalendarService:
             )
             session.add(link)
         else:
-            self._client.update(link.google_event_id, body)
+            try:
+                self._client.update(link.google_event_id, body)
+            except HttpError as exc:
+                if exc.status_code not in _GONE:
+                    raise
+                link.google_event_id = self._client.insert(body)
             link.last_synced_hash = event.content_hash
         session.flush()
         return link
@@ -160,10 +190,12 @@ def google_event_body(event: Event) -> dict[str, Any]:
 
 
 def build_google_events_client(token_path: Path | None = None) -> GoogleApiEvents:
-    path = token_path or Path(get_settings().google_token_path)
-    creds = _load_credentials(path)
+    settings = get_settings()
+    path = token_path or Path(settings.google_token_path)
+    token_json = settings.google_token_json or None
+    creds = load_credentials(token_json=token_json, token_path=path)
     service = build("calendar", "v3", credentials=creds, cache_discovery=False)
-    return GoogleApiEvents(service)
+    return GoogleApiEvents(service, calendar_id=settings.google_calendar_id)
 
 
 def write_local_token(client_secrets_path: Path, token_path: Path) -> None:
@@ -173,14 +205,40 @@ def write_local_token(client_secrets_path: Path, token_path: Path) -> None:
     token_path.write_text(creds.to_json(), encoding="utf-8")
 
 
-def _load_credentials(path: Path) -> Credentials:
+def load_credentials(
+    *,
+    token_json: str | None,
+    token_path: Path,
+    refresh: Callable[[Credentials], None] | None = None,
+) -> Credentials:
     # token.json on disk is a development stand-in.
     # Production needs encrypted storage for the refresh token.
-    creds = Credentials.from_authorized_user_file(str(path), _SCOPES)
+    # GOOGLE_TOKEN_JSON is used as-is and never read from or written to disk.
+    if token_json:
+        creds = Credentials.from_authorized_user_info(json.loads(token_json), _SCOPES)
+    else:
+        creds = Credentials.from_authorized_user_file(str(token_path), _SCOPES)
     if creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        path.write_text(creds.to_json(), encoding="utf-8")
+        try:
+            if refresh is None:
+                creds.refresh(Request())
+            else:
+                refresh(creds)
+        except RefreshError as exc:
+            raise CalendarAuthError(
+                "Google token expired or revoked: re-run the auth script"
+            ) from exc
+        if not token_json:
+            token_path.write_text(creds.to_json(), encoding="utf-8")
     return creds
+
+
+def _is_current(event: Event, now: datetime) -> bool:
+    key = key_datetime(event)
+    if key is None:
+        return False
+    moment = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
+    return key >= moment.astimezone(UTC)
 
 
 def _interval(event: Event) -> tuple[datetime, datetime]:

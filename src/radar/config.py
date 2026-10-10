@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     clist_api_key: str | None = None
     clist_username: str | None = None
     google_token_path: str = "token.json"
+    google_token_json: str | None = None
+    google_calendar_id: str = "primary"
 
 
 def get_settings() -> Settings:

@@ -26,6 +26,9 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "live: calls Google Calendar; set RADAR_LIVE_TESTS=1 to run",
+]
 
 [tool.ruff]
 target-version = "py312"

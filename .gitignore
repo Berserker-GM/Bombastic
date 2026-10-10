@@ -9,3 +9,6 @@ token.json
 dist/
 *.egg-info/
 build/
+credentials.json
+token.json
+cilent_secret*.json

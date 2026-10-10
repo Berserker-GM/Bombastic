@@ -1,14 +1,26 @@
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
+from google.auth.exceptions import RefreshError
+from google.oauth2.credentials import Credentials
+from googleapiclient.errors import HttpError
 from sqlalchemy import create_engine, func, select
 from sqlalchemy import event as sa_event
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from radar.calendar.google import REMINDERS, GoogleCalendarService, google_event_body
+from radar.calendar.google import (
+    REMINDERS,
+    CalendarAuthError,
+    GoogleCalendarService,
+    build_google_events_client,
+    google_event_body,
+    load_credentials,
+)
 from radar.models import (
     Base,
     CalendarLink,
@@ -22,6 +34,7 @@ from radar.models import (
 )
 
 START = datetime(2026, 11, 1, 12, tzinfo=UTC)
+NOW = datetime(2026, 10, 1, tzinfo=UTC)
 OCT_15 = datetime(2026, 10, 15, tzinfo=UTC)
 OCT_20 = datetime(2026, 10, 20, tzinfo=UTC)
 USER = "user-1"
@@ -44,6 +57,10 @@ class FakeGoogleEvents:
 
     def delete(self, google_event_id: str) -> None:
         self.deleted.append(google_event_id)
+
+
+def _service(client: FakeGoogleEvents) -> GoogleCalendarService:
+    return GoogleCalendarService(client, now=lambda: NOW)
 
 
 @pytest.fixture
@@ -121,7 +138,7 @@ def test_create_skips_unchanged_then_updates_once(session: Session) -> None:
     event = _event(session, source)
     _prefs(session, "auto")
     fake = FakeGoogleEvents()
-    service = GoogleCalendarService(fake)
+    service = _service(fake)
 
     created = service.upsert_event(session, USER, event)
 
@@ -157,7 +174,7 @@ def test_confirm_mode_syncs_only_when_added(session: Session) -> None:
     event = _event(session, source)
     _prefs(session, "confirm")
     fake = FakeGoogleEvents()
-    service = GoogleCalendarService(fake)
+    service = _service(fake)
 
     assert service.upsert_event(session, USER, event) is None
     assert fake.inserted == []
@@ -166,14 +183,16 @@ def test_confirm_mode_syncs_only_when_added(session: Session) -> None:
 
     assert added is not None
     assert len(fake.inserted) == 1
+    event.registration_deadline = OCT_20
     event.content_hash = "hash-2"
-    assert service.upsert_event(session, USER, event) is added
-    assert fake.updated == []
+    updated = service.upsert_event(session, USER, event)
 
-    service.add_to_calendar(session, USER, event.id)
-
+    assert updated is added
     assert len(fake.inserted) == 1
     assert len(fake.updated) == 1
+    assert fake.updated[0][0] == "gcal-1"
+    assert fake.updated[0][1]["start"]["dateTime"] == OCT_20.isoformat()
+    assert added.last_synced_hash == "hash-2"
 
 
 def test_delete_removes_the_google_event_once(session: Session) -> None:
@@ -181,7 +200,7 @@ def test_delete_removes_the_google_event_once(session: Session) -> None:
     event = _event(session, source)
     _prefs(session, "auto")
     fake = FakeGoogleEvents()
-    service = GoogleCalendarService(fake)
+    service = _service(fake)
     service.upsert_event(session, USER, event)
 
     service.delete(session, USER, event)
@@ -246,3 +265,195 @@ def test_reminder_rules(
 
     assert _minutes(body) == list(minutes)
     assert body["end"]["dateTime"] == end.isoformat()
+
+
+PAST = datetime(2020, 1, 1, tzinfo=UTC)
+_TOKEN = {
+    "token": "access-token",
+    "refresh_token": "refresh-token",
+    "client_id": "client-id",
+    "client_secret": "client-secret",
+}
+
+
+def _http_error(status: int) -> HttpError:
+    class _Response:
+        def __init__(self) -> None:
+            self.status = status
+            self.reason = "missing"
+
+    return HttpError(_Response(), b"")
+
+
+def test_skips_events_with_no_or_past_key_time(session: Session) -> None:
+    source = _source(session)
+    _prefs(session, "auto")
+    fake = FakeGoogleEvents()
+    service = _service(fake)
+    undated = _event(
+        session,
+        source,
+        fingerprint="undated",
+        registration_deadline=None,
+        content_hash="undated",
+    )
+    past = _event(
+        session,
+        source,
+        fingerprint="past",
+        registration_deadline=PAST,
+        content_hash="past",
+    )
+
+    assert service.upsert_event(session, USER, undated) is None
+    assert service.upsert_event(session, USER, past) is None
+    assert service.add_to_calendar(session, USER, past.id) is None
+    assert fake.inserted == []
+    assert fake.updated == []
+
+    future = _event(session, source, fingerprint="future", content_hash="future")
+    service.upsert_event(session, USER, future)
+    future.registration_deadline = PAST
+    future.content_hash = "now-past"
+
+    assert service.upsert_event(session, USER, future) is None
+    assert fake.updated == []
+    assert _link_count(session) == 1
+
+
+@pytest.mark.parametrize("status", [404, 410])
+def test_deleted_google_event_is_recreated(session: Session, status: int) -> None:
+    source = _source(session)
+    event = _event(session, source)
+    _prefs(session, "auto")
+
+    class Gone(FakeGoogleEvents):
+        def update(self, google_event_id: str, body: dict[str, Any]) -> None:
+            raise _http_error(status)
+
+    fake = Gone()
+    service = _service(fake)
+    created = service.upsert_event(session, USER, event)
+    assert created is not None
+    event.registration_deadline = OCT_20
+    event.content_hash = "hash-2"
+
+    updated = service.upsert_event(session, USER, event)
+
+    assert updated is created
+    assert len(fake.inserted) == 2
+    assert updated.google_event_id == "gcal-2"
+    assert updated.last_synced_hash == "hash-2"
+    assert _link_count(session) == 1
+
+
+def test_update_http_500_is_not_recreated(session: Session) -> None:
+    source = _source(session)
+    event = _event(session, source)
+    _prefs(session, "auto")
+
+    class Broken(FakeGoogleEvents):
+        def update(self, google_event_id: str, body: dict[str, Any]) -> None:
+            raise _http_error(500)
+
+    fake = Broken()
+    service = _service(fake)
+    service.upsert_event(session, USER, event)
+    event.content_hash = "hash-2"
+
+    with pytest.raises(HttpError) as raised:
+        service.upsert_event(session, USER, event)
+
+    assert raised.value.status_code == 500
+    assert len(fake.inserted) == 1
+
+
+@pytest.mark.parametrize("status", [404, 410])
+def test_delete_of_missing_google_event_succeeds(session: Session, status: int) -> None:
+    source = _source(session)
+    event = _event(session, source)
+    _prefs(session, "auto")
+
+    class Gone(FakeGoogleEvents):
+        def delete(self, google_event_id: str) -> None:
+            raise _http_error(status)
+
+    fake = Gone()
+    service = _service(fake)
+    service.upsert_event(session, USER, event)
+
+    service.delete(session, USER, event)
+
+    assert _link_count(session) == 0
+
+
+def test_build_client_uses_configured_calendar_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GOOGLE_CALENDAR_ID", "team-cal")
+    future = {**_TOKEN, "expiry": "2027-01-01T00:00:00Z"}
+    monkeypatch.setenv("GOOGLE_TOKEN_JSON", json.dumps(future))
+    seen: dict[str, str] = {}
+
+    class _Call:
+        def execute(self) -> dict[str, str]:
+            return {"id": "evt"}
+
+    class _Resource:
+        def events(self) -> "_Resource":
+            return self
+
+        def insert(self, *, calendarId: str, body: dict[str, Any]) -> _Call:
+            seen["calendarId"] = calendarId
+            return _Call()
+
+    monkeypatch.setattr(
+        "radar.calendar.google.build", lambda *args, **kwargs: _Resource()
+    )
+    client = build_google_events_client()
+    client.insert({"summary": "x"})
+
+    assert seen["calendarId"] == "team-cal"
+
+
+def test_token_json_does_not_touch_the_filesystem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(*args: Any, **kwargs: Any) -> Credentials:
+        raise AssertionError("token file was opened")
+
+    monkeypatch.setattr(Credentials, "from_authorized_user_file", fail)
+    path = tmp_path / "token.json"
+    future = {**_TOKEN, "expiry": "2027-01-01T00:00:00Z"}
+
+    creds = load_credentials(token_json=json.dumps(future), token_path=path)
+
+    assert creds.token == "access-token"
+    assert not path.exists()
+
+
+def test_token_path_is_used_when_json_is_absent(tmp_path: Path) -> None:
+    path = tmp_path / "token.json"
+    future = {**_TOKEN, "expiry": "2027-01-01T00:00:00Z"}
+    path.write_text(json.dumps(future), encoding="utf-8")
+
+    creds = load_credentials(token_json=None, token_path=path)
+
+    assert creds.token == "access-token"
+
+
+def test_failed_refresh_raises_calendar_auth_error(tmp_path: Path) -> None:
+    expired = {**_TOKEN, "expiry": "2020-01-01T00:00:00Z"}
+
+    def boom(creds: Credentials) -> None:
+        raise RefreshError("invalid_grant")
+
+    with pytest.raises(
+        CalendarAuthError,
+        match="Google token expired or revoked: re-run the auth script",
+    ):
+        load_credentials(
+            token_json=json.dumps(expired),
+            token_path=tmp_path / "token.json",
+            refresh=boom,
+        )

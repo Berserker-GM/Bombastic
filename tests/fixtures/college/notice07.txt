@@ -1,0 +1,5 @@
+Reminder: Guest Lecture
+
+All 2nd year CSE students are requested to attend the guest lecture on "Machine Learning in Production" this Friday at 2:00 PM in the Seminar Hall.
+
+Attendance is compulsory.
