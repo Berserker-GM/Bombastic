@@ -147,6 +147,8 @@ class ClistCollector(Collector):
     ) -> None:
         self._sleep = asyncio.sleep if sleep is None else sleep
         self._page_limit = page_limit
+        self._warnings: list[str] = []
+        self._failed_items = 0
 
     async def collect(self) -> CollectResult:
         _arm_redaction()
@@ -177,6 +179,25 @@ class ClistCollector(Collector):
             return _failure("malformed", exc)
         return self._from_events(events)
 
+    def _from_events(self, events: list[RawEvent]) -> CollectResult:
+        if not events and self._failed_items:
+            message = "every item failed: " + "; ".join(self._warnings)
+            return CollectResult(
+                status="malformed",
+                events=[],
+                error=message,
+                warnings=list(self._warnings),
+            )
+        result = super()._from_events(events)
+        if self._warnings and result.status == "ok":
+            return result.model_copy(
+                update={
+                    "warnings": list(self._warnings),
+                    "warning": "; ".join(self._warnings),
+                }
+            )
+        return result
+
     async def fetch(self) -> list[RawEvent]:
         username, api_key = _arm_redaction()
         if not username or not api_key:
@@ -187,7 +208,10 @@ class ClistCollector(Collector):
             api_key=api_key,
             now=now,
         )
-        return events_from_contests(contests, now=now)
+        events, warnings, failed = parse_contests(contests, now=now)
+        self._warnings = warnings
+        self._failed_items = failed
+        return events
 
     async def _fetch_pages(
         self,
@@ -252,12 +276,32 @@ class ClistCollector(Collector):
 
 
 def events_from_contests(contests: list[Any], *, now: datetime) -> list[RawEvent]:
+    events, _warnings, _failed = parse_contests(contests, now=now)
+    return events
+
+
+def parse_contests(
+    contests: list[Any], *, now: datetime
+) -> tuple[list[RawEvent], list[str], int]:
     events: list[RawEvent] = []
-    for contest in contests:
-        event = _upcoming_event(contest, now=now)
+    warnings: list[str] = []
+    failed = 0
+    for index, contest in enumerate(contests):
+        try:
+            event = _upcoming_event(contest, now=now)
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            failed += 1
+            warnings.append(f"{_contest_label(contest, index)}: {exc}")
+            continue
         if event is not None:
             events.append(event)
-    return events
+    return events, warnings, failed
+
+
+def _contest_label(contest: Any, index: int) -> str:
+    if isinstance(contest, dict) and contest.get("id") is not None:
+        return f"contest {contest['id']}"
+    return f"item {index}"
 
 
 def _objects(payload: Any) -> list[Any]:

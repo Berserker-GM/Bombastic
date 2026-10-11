@@ -1,6 +1,5 @@
-import asyncio
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -12,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from radar.api.main import USER_ID, create_app, get_calendar_service, get_session
 from radar.calendar.google import CalendarAuthError
+from radar.collectors.base import CollectResult
 from radar.models import (
     Base,
     Event,
@@ -25,10 +25,8 @@ from radar.models import (
     ScanStatus,
     Source,
     SourceKind,
-    SourceResult,
     UserEventState,
 )
-from radar.pipeline.ingest import SourceRunResult
 from radar.pipeline.scan import run_scan
 
 TOKEN = "test-token"
@@ -285,7 +283,7 @@ def test_scan_now_conflicts_while_a_scan_is_running(
     with session_factory() as session:
         session.add(
             ScanRun(
-                started_at=NOW,
+                started_at=datetime.now(UTC),
                 finished_at=None,
                 status=ScanStatus.RUNNING,
                 per_source={},
@@ -347,7 +345,10 @@ def test_calendar_auth_error_is_502(
 def test_run_scan_records_each_source_and_finishes(
     session_factory: sessionmaker[Session],
 ) -> None:
-    async def ok(session: Session) -> SourceRunResult:
+    def down() -> CollectResult:
+        raise RuntimeError("timeout")
+
+    with session_factory() as session:
         session.add(
             Source(
                 kind=SourceKind.API,
@@ -356,12 +357,9 @@ def test_run_scan_records_each_source_and_finishes(
                 enabled=True,
                 health_status=HealthStatus.DEGRADED,
                 consecutive_failures=1,
+                last_success_at=datetime.now(UTC),
             )
         )
-        session.flush()
-        return SourceRunResult(result=SourceResult.OK_NEW)
-
-    async def down(session: Session) -> SourceRunResult:
         session.add(
             Source(
                 kind=SourceKind.API,
@@ -372,36 +370,36 @@ def test_run_scan_records_each_source_and_finishes(
                 consecutive_failures=0,
             )
         )
-        session.flush()
-        raise RuntimeError("timeout")
-
-    with session_factory() as session:
         run = ScanRun(
-            started_at=NOW,
+            started_at=datetime.now(UTC),
             finished_at=None,
             status=ScanStatus.RUNNING,
             per_source={},
         )
         session.add(run)
         session.commit()
-        scan_id = run.id
-
-    finished = asyncio.run(
-        run_scan(
+        code = run_scan(
+            session,
             ["devpost", "unstop"],
-            scan_id=scan_id,
-            session_factory=session_factory,
-            scanners={"devpost": ok, "unstop": down},
+            scan_id=run.id,
+            collectors={
+                "devpost": lambda: CollectResult(status="ok", events=[]),
+                "unstop": down,
+            },
+            calendar=None,
+            alerter=lambda _message: None,
         )
-    )
-
-    with session_factory() as session:
-        stored = session.get(ScanRun, finished)
+        stored = session.get(ScanRun, run.id)
         assert stored is not None
-        assert stored.status == ScanStatus.DONE
-        assert stored.per_source["devpost"]["result"] == "ok_new"
-        assert stored.per_source["unstop"]["result"] == "unreachable"
-        assert stored.per_source["unstop"]["error"] == "timeout"
+        status = stored.status
+        per_source = stored.per_source
+
+    assert code == 0
+    assert status == ScanStatus.DONE
+    assert per_source["devpost"]["result"] == "ok_nothing_new"
+    assert per_source["unstop"]["result"] == "malformed"
+    assert per_source["unstop"]["error"] == "timeout"
+    with session_factory() as session:
         health = {
             source.name: source.health_status
             for source in session.scalars(select(Source))
@@ -410,3 +408,25 @@ def test_run_scan_records_each_source_and_finishes(
         assert health["unstop"] == HealthStatus.STALE
         states = session.scalars(select(UserEventState)).all()
         assert states == []
+
+
+def test_scan_now_ignores_a_running_row_older_than_30_minutes(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("radar.api.main.run_scan", lambda *_args, **_kwargs: 0)
+    with session_factory() as session:
+        session.add(
+            ScanRun(
+                started_at=datetime.now(UTC) - timedelta(minutes=31),
+                finished_at=None,
+                status=ScanStatus.RUNNING,
+                per_source={},
+            )
+        )
+        session.commit()
+
+    response = client.post("/scan/now", headers=_auth())
+
+    assert response.status_code == 202

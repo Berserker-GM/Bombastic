@@ -95,6 +95,7 @@ class SourceRunResult:
     result: SourceResult
     error: str | None = None
     warning: str | None = None
+    warnings: list[str] = field(default_factory=list)
     new: list[Event] = field(default_factory=list)
     changed: list[Event] = field(default_factory=list)
     unchanged: list[Event] = field(default_factory=list)
@@ -144,6 +145,7 @@ def ingest_run(
             result=status,
             error=collect_result.error,
             warning=collect_result.warning,
+            warnings=list(collect_result.warnings),
         )
     ingested = ingest(session, source, collect_result.events)
     status = (
@@ -155,6 +157,7 @@ def ingest_run(
         result=status,
         error=None,
         warning=collect_result.warning,
+        warnings=list(collect_result.warnings),
         new=ingested.new,
         changed=ingested.changed,
         unchanged=ingested.unchanged,

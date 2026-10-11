@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
 from radar.collectors.base import Collector, CollectResult, RawEvent
 from radar.models.enums import EventCategory, EventMode, Lifecycle
@@ -79,9 +80,13 @@ class DevpostCollector(Collector):
         self._now = now
         self._sleep = asyncio.sleep if sleep is None else sleep
         self._page_cap_hit = False
+        self._warnings: list[str] = []
+        self._failed_items = 0
 
     async def fetch(self) -> list[RawEvent]:
         self._page_cap_hit = False
+        self._warnings = []
+        self._failed_items = 0
         now = self._now if self._now is not None else datetime.now(UTC)
         events: list[RawEvent] = []
         async with httpx.AsyncClient(
@@ -94,8 +99,10 @@ class DevpostCollector(Collector):
                     await self._sleep(_PAGE_INTERVAL_SECONDS)
                 response = await client.get(HACKATHONS_URL, params=_page_params(page))
                 response.raise_for_status()
-                batch = events_from_listing(response.json(), now=now)
-                if not batch:
+                batch, warnings, count = parse_listing(response.json(), now=now)
+                self._warnings.extend(warnings)
+                self._failed_items += count - len(batch)
+                if count == 0:
                     break
                 events.extend(batch)
             else:
@@ -103,19 +110,56 @@ class DevpostCollector(Collector):
         return events
 
     def _from_events(self, events: list[RawEvent]) -> CollectResult:
+        if not events and self._failed_items:
+            message = "every item failed: " + "; ".join(self._warnings)
+            return CollectResult(
+                status="malformed",
+                events=[],
+                error=message,
+                warnings=list(self._warnings),
+            )
         result = super()._from_events(events)
+        warnings = list(self._warnings)
+        warning = result.warning
         if self._page_cap_hit and result.status == "ok":
-            return result.model_copy(update={"warning": _PAGE_CAP_WARNING})
+            warnings = [_PAGE_CAP_WARNING, *warnings]
+            warning = _PAGE_CAP_WARNING
+            if self._warnings:
+                warning = f"{_PAGE_CAP_WARNING}; " + "; ".join(self._warnings)
+        elif self._warnings and result.status == "ok":
+            warning = "; ".join(self._warnings)
+        if warnings or warning != result.warning:
+            return result.model_copy(update={"warning": warning, "warnings": warnings})
         return result
 
 
 def events_from_listing(payload: dict[str, Any], *, now: datetime) -> list[RawEvent]:
+    events, _warnings, _failed = parse_listing(payload, now=now)
+    return events
+
+
+def parse_listing(
+    payload: dict[str, Any], *, now: datetime
+) -> tuple[list[RawEvent], list[str], int]:
     if not isinstance(payload, dict):
         raise TypeError("listing is not an object")
     hackathons = payload["hackathons"]
     if not isinstance(hackathons, list):
         raise TypeError("hackathons is not a list")
-    return [_event(hackathon, now=now) for hackathon in hackathons]
+    events: list[RawEvent] = []
+    warnings: list[str] = []
+    for index, hackathon in enumerate(hackathons):
+        try:
+            events.append(_event(hackathon, now=now))
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            warnings.append(f"{_hackathon_label(hackathon, index)}: {exc}")
+    return events, warnings, len(hackathons)
+
+
+def _hackathon_label(hackathon: Any, index: int) -> str:
+    if isinstance(hackathon, dict) and hackathon.get("id") is not None:
+        return f"item {hackathon['id']}"
+    return f"item {index}"
 
 
 def parse_prize_amount_inr(text: str | None) -> int | None:

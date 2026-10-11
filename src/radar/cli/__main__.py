@@ -3,58 +3,35 @@
 import argparse
 import asyncio
 import json
+import sys
+from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from radar.collectors.clist import ClistCollector
-from radar.collectors.codeforces import CodeforcesCollector
-from radar.collectors.devfolio import DevfolioCollector
-from radar.collectors.devpost import DevpostCollector
-from radar.collectors.unstop import UnstopCollector
 from radar.db import SessionLocal
-from radar.models import EventVersion, HealthStatus, Source, SourceKind
-from radar.pipeline.ingest import SourceRunResult, ingest_run
+from radar.models import EventVersion, Source
+from radar.pipeline.ingest import SourceRunResult
+from radar.pipeline.scan import ScanAlreadyRunning, run_scan
+from radar.pipeline.sources import (
+    SCANNERS as _SCANNERS,
+)
+from radar.pipeline.sources import (
+    scan_clist,
+    scan_codeforces,
+    scan_devfolio,
+    scan_devpost,
+    scan_unstop,
+)
 
-_CODEFORCES = "codeforces"
-_CLIST = "clist"
-_DEVPOST = "devpost"
-_UNSTOP = "unstop"
-_DEVFOLIO = "devfolio"
-
-
-async def scan_codeforces(session: Session) -> SourceRunResult:
-    collected = await CodeforcesCollector().collect()
-    return ingest_run(session, _get_source(session, _CODEFORCES), collected)
-
-
-async def scan_clist(session: Session) -> SourceRunResult:
-    collected = await ClistCollector().collect()
-    return ingest_run(session, _get_source(session, _CLIST), collected)
-
-
-async def scan_devpost(session: Session) -> SourceRunResult:
-    collected = await DevpostCollector().collect()
-    return ingest_run(session, _get_source(session, _DEVPOST), collected)
-
-
-async def scan_unstop(session: Session) -> SourceRunResult:
-    collected = await UnstopCollector().collect()
-    return ingest_run(session, _get_source(session, _UNSTOP), collected)
-
-
-async def scan_devfolio(session: Session) -> SourceRunResult:
-    collected = await DevfolioCollector().collect()
-    return ingest_run(session, _get_source(session, _DEVFOLIO), collected)
-
-
-_SCANNERS = {
-    _CODEFORCES: scan_codeforces,
-    _CLIST: scan_clist,
-    _DEVPOST: scan_devpost,
-    _UNSTOP: scan_unstop,
-    _DEVFOLIO: scan_devfolio,
-}
+__all__ = [
+    "main",
+    "scan_clist",
+    "scan_codeforces",
+    "scan_devfolio",
+    "scan_devpost",
+    "scan_unstop",
+]
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -62,7 +39,15 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     scan = sub.add_parser("scan")
     scan.add_argument("source")
+    sub.add_parser("scan-all")
+    sub.add_parser("sources")
     args = parser.parse_args(argv)
+    if args.command == "scan-all":
+        _scan_all()
+        return
+    if args.command == "sources":
+        _print_sources()
+        return
     if args.command != "scan" or args.source not in _SCANNERS:
         parser.error(f"unknown source {args.source}")
     with SessionLocal() as session:
@@ -72,21 +57,55 @@ def main(argv: list[str] | None = None) -> None:
     _print_outcome(outcome, changes)
 
 
-def _get_source(session: Session, name: str) -> Source:
-    source = session.scalar(select(Source).where(Source.name == name))
-    if source is not None:
-        return source
-    source = Source(
-        kind=SourceKind.API,
-        name=name,
-        config={},
-        enabled=True,
-        health_status=HealthStatus.HEALTHY,
-        consecutive_failures=0,
-    )
-    session.add(source)
-    session.flush()
-    return source
+def format_health_table(sources: Sequence[Source]) -> str:
+    header = ("name", "health", "failures", "last_success", "last_error")
+    body = [
+        (
+            source.name,
+            source.health_status.value,
+            str(source.consecutive_failures),
+            _format_dt(source.last_success_at),
+            source.last_error or "-",
+        )
+        for source in sources
+    ]
+    widths = [len(cell) for cell in header]
+    for row in body:
+        for index, cell in enumerate(row):
+            widths[index] = max(widths[index], len(cell))
+
+    def render(row: tuple[str, ...]) -> str:
+        return "  ".join(cell.ljust(widths[index]) for index, cell in enumerate(row))
+
+    lines = [render(header)]
+    lines.extend(render(row) for row in body)
+    return "\n".join(lines)
+
+
+def _scan_all() -> None:
+    with SessionLocal() as session:
+        try:
+            code = run_scan(session)
+        except ScanAlreadyRunning as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(1) from exc
+    raise SystemExit(code)
+
+
+def _print_sources() -> None:
+    with SessionLocal() as session:
+        sources = list(session.scalars(select(Source).order_by(Source.name)).all())
+    print(format_health_table(sources))
+
+
+def _format_dt(value: datetime | None) -> str:
+    if value is None:
+        return "-"
+    if value.tzinfo is None:
+        utc = value.replace(tzinfo=UTC)
+    else:
+        utc = value.astimezone(UTC)
+    return utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _change_details(outcome: SourceRunResult) -> list[dict[str, object]]:

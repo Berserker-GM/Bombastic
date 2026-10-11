@@ -141,6 +141,9 @@ def test_one_bad_item_warns_and_keeps_the_rest() -> None:
     assert result.warning == (
         "item 69bc320cd0ff44f4bf84e9facd534485: name is not a string"
     )
+    assert result.warnings == [
+        "item 69bc320cd0ff44f4bf84e9facd534485: name is not a string"
+    ]
 
 
 def test_every_failed_item_is_malformed() -> None:
@@ -160,6 +163,11 @@ def test_every_failed_item_is_malformed() -> None:
         "item 69bc320cd0ff44f4bf84e9facd534485: name is not a string; "
         "item 9355584ad9e543b5a90f602a27a596b4: name is not a string"
     )
+    assert result.warnings == [
+        "item d959fbb33372440883f65f9ff9054982: name is not a string",
+        "item 69bc320cd0ff44f4bf84e9facd534485: name is not a string",
+        "item 9355584ad9e543b5a90f602a27a596b4: name is not a string",
+    ]
 
 
 def test_page_cap_returns_ok_with_a_warning() -> None:
@@ -184,6 +192,7 @@ def test_page_cap_returns_ok_with_a_warning() -> None:
     assert delays == [1.0] * 9
     assert result.status == "ok"
     assert result.warning == "stopped after 10 pages"
+    assert result.warnings == ["stopped after 10 pages"]
     assert [event.external_id for event in result.events] == [
         str(page) for page in range(1, 11)
     ]

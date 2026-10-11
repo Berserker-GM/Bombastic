@@ -1,0 +1,34 @@
+name: Daily scan
+
+on:
+  schedule:
+    # 07:30 UTC is 13:00 IST, inside the 12:00-17:00 window.
+    # GitHub cron can start 15-30 minutes late.
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Scan all sources
+        # DATABASE_URL must be a Neon or Supabase Postgres URL.
+        # The runner disk is wiped after the job, so a SQLite file would not persist.
+        run: uv run python -m radar.cli scan-all
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLIST_API_KEY: ${{ secrets.CLIST_API_KEY }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}

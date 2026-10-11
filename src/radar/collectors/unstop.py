@@ -95,19 +95,29 @@ class UnstopCollector(Collector):
         return events
 
     def _from_events(self, events: list[RawEvent]) -> CollectResult:
+        warnings = list(self._warnings)
         if not events and self._failed_items:
-            message = "every item failed: " + "; ".join(self._warnings)
+            message = "every item failed: " + "; ".join(warnings)
             if self._page_cap_hit:
                 message = f"{_PAGE_CAP_WARNING}; {message}"
-            return CollectResult(status="malformed", events=[], error=message)
+                warnings = [_PAGE_CAP_WARNING, *warnings]
+            return CollectResult(
+                status="malformed",
+                events=[],
+                error=message,
+                warnings=warnings,
+            )
         result = super()._from_events(events)
         parts: list[str] = []
         if self._page_cap_hit and result.status == "ok":
             parts.append(_PAGE_CAP_WARNING)
+            warnings = [_PAGE_CAP_WARNING, *warnings]
         if self._warnings and result.status == "ok":
             parts.append("; ".join(self._warnings))
-        if parts:
-            return result.model_copy(update={"warning": "; ".join(parts)})
+        if parts or warnings:
+            return result.model_copy(
+                update={"warning": "; ".join(parts) or None, "warnings": warnings}
+            )
         return result
 
 

@@ -287,6 +287,33 @@ def test_stops_after_20_pages(clist_env: None) -> None:
     assert all("leak-key" not in str(request.url) for request in requests)
 
 
+def test_one_bad_contest_is_skipped_with_a_warning(clist_env: None) -> None:
+    bad = _contest(2, "codechef.com")
+    bad["host"] = {"name": "codechef.com"}
+    payload = {"objects": [_contest(1, "codechef.com", title="Cup"), bad]}
+
+    result, _requests = _run(lambda _request: httpx.Response(200, json=payload))
+
+    assert result.status == "ok"
+    assert [event.external_id for event in result.events] == ["1"]
+    assert result.warnings == ["contest 2: host is not a string"]
+    assert result.warning == "contest 2: host is not a string"
+
+
+def test_every_bad_contest_is_malformed(clist_env: None) -> None:
+    bad = _contest(9, "codechef.com")
+    bad["start"] = None
+
+    result, _requests = _run(
+        lambda _request: httpx.Response(200, json={"objects": [bad]})
+    )
+
+    assert result.status == "malformed"
+    assert result.events == []
+    assert result.error == "every item failed: contest 9: contest time is not a string"
+    assert result.warnings == ["contest 9: contest time is not a string"]
+
+
 @pytest.mark.parametrize(
     "payload",
     [

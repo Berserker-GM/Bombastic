@@ -70,8 +70,10 @@ class SourceResult(StrEnum):
     OK_NOTHING_NEW = "ok_nothing_new"
     UNREACHABLE = "unreachable"
     MALFORMED = "malformed"
+    SKIPPED = "skipped"
 
 
 class ScanStatus(StrEnum):
     RUNNING = "running"
     DONE = "done"
+    FAILED = "failed"

@@ -32,7 +32,7 @@ from radar.models import (
     UserPrefs,
     UserState,
 )
-from radar.pipeline.scan import SCANNERS, run_scan
+from radar.pipeline.scan import BUILTIN_SOURCE_NAMES, run_scan, scan_blocks
 from radar.pipeline.scoring import FeedItem, build_feed, relevance, urgency
 
 USER_ID = "local"
@@ -328,7 +328,7 @@ def post_scan_now(
 ) -> ScanAccepted:
     names = None if body is None else body.sources
     if names is not None:
-        unknown = [name for name in names if name not in SCANNERS]
+        unknown = [name for name in names if name not in BUILTIN_SOURCE_NAMES]
         if unknown:
             raise HTTPException(status_code=422, detail=f"unknown source {unknown[0]}")
     now = datetime.now(UTC)
@@ -347,12 +347,21 @@ def post_scan_now(
     scan_id = run.id
     session.commit()
     background.add_task(
-        run_scan,
+        _execute_scan,
+        request.app.state.session_factory,
         names,
-        scan_id=scan_id,
-        session_factory=request.app.state.session_factory,
+        scan_id,
     )
     return ScanAccepted(id=scan_id, status="running")
+
+
+def _execute_scan(
+    session_factory: sessionmaker[Session],
+    sources: list[str] | None,
+    scan_id: int,
+) -> None:
+    with session_factory() as session:
+        run_scan(session, sources, scan_id=scan_id)
 
 
 def create_app(session_factory: sessionmaker[Session] | None = None) -> FastAPI:
@@ -522,10 +531,7 @@ def _latest_scan(session: Session) -> ScanRun | None:
 
 
 def _scan_running(session: Session) -> bool:
-    running = session.scalar(
-        select(ScanRun.id).where(ScanRun.status == ScanStatus.RUNNING)
-    )
-    return running is not None
+    return scan_blocks(session)
 
 
 def _scan_started_since(session: Session, cutoff: datetime) -> bool:
@@ -539,7 +545,7 @@ def _scan_status(run: ScanRun) -> ScanStatusOut:
     per_source: dict[str, SourceScanOut] = {}
     raw = run.per_source if isinstance(run.per_source, dict) else {}
     for name, payload in raw.items():
-        if not isinstance(payload, dict):
+        if name == "calendar" or not isinstance(payload, dict):
             continue
         counts = payload.get("counts")
         error = payload.get("error")

@@ -60,6 +60,34 @@ def test_http_500_is_unreachable() -> None:
     assert result.error is not None
 
 
+def test_one_bad_contest_is_skipped_with_a_warning() -> None:
+    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    payload["result"].append(
+        {
+            "id": 1,
+            "phase": "BEFORE",
+            "startTimeSeconds": 1_800_000_000,
+            "durationSeconds": 7200,
+        }
+    )
+
+    result = _collect(httpx.Response(200, json=payload))
+
+    assert result.status == "ok"
+    assert [event.external_id for event in result.events] == ["2148", "2149"]
+    assert result.warnings == ["contest 1: 'name'"]
+    assert result.warning == "contest 1: 'name'"
+
+
+def test_every_bad_contest_is_malformed() -> None:
+    result = _collect(httpx.Response(200, json={"status": "OK", "result": [{"id": 9}]}))
+
+    assert result.status == "malformed"
+    assert result.events == []
+    assert result.error == "every item failed: contest 9: 'phase'"
+    assert result.warnings == ["contest 9: 'phase'"]
+
+
 def test_missing_result_is_malformed() -> None:
     result = _collect(httpx.Response(200, json={"status": "OK"}))
 

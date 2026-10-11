@@ -55,6 +55,7 @@ class CollectResult(BaseModel):
     events: list[RawEvent] = Field(default_factory=list)
     error: str | None = None
     warning: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class Collector(ABC):

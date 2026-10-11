@@ -11,4 +11,4 @@ dist/
 build/
 credentials.json
 token.json
-cilent_secret*.json
+client_secret*.json

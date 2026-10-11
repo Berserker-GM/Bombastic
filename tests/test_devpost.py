@@ -317,9 +317,35 @@ def test_page_cap_returns_ok_with_a_warning() -> None:
     assert delays == [1.0] * 29
     assert result.status == "ok"
     assert result.warning == "stopped after 30 pages"
+    assert result.warnings == ["stopped after 30 pages"]
     assert [event.external_id for event in result.events] == [
         str(page) for page in range(1, 31)
     ]
+
+
+def test_one_bad_hackathon_is_skipped_with_a_warning() -> None:
+    payload = _payload()
+    payload["hackathons"].append({"id": 1})
+
+    result = _collect(httpx.Response(200, json=payload))
+
+    assert result.status == "ok"
+    assert [event.external_id for event in result.events] == [
+        "30992",
+        "31481",
+        "31503",
+    ]
+    assert result.warnings == ["item 1: 'title'"]
+    assert result.warning == "item 1: 'title'"
+
+
+def test_every_bad_hackathon_is_malformed() -> None:
+    result = _collect(httpx.Response(200, json={"hackathons": [{"id": 9}]}))
+
+    assert result.status == "malformed"
+    assert result.events == []
+    assert result.error == "every item failed: item 9: 'title'"
+    assert result.warnings == ["item 9: 'title'"]
 
 
 def test_empty_listing_is_suspiciously_empty() -> None:
