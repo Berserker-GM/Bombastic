@@ -1,0 +1,80 @@
+{
+  "count": 16,
+  "pages": 1,
+  "result": [
+    {
+      "uuid": "d959fbb33372440883f65f9ff9054982",
+      "name": "Winter of Code 2026",
+      "slug": "winter-of-code-4",
+      "starts_at": "2026-10-14T18:30:00.000Z",
+      "ends_at": "2026-11-30T18:30:00.000Z",
+      "is_online": true,
+      "city": null,
+      "country": null,
+      "team_min": 1,
+      "team_size": 1,
+      "themes": [
+        {
+          "uuid": "a15061e97ec148009d7e3993eafe047b",
+          "name": "No Restrictions"
+        }
+      ],
+      "hackathon_setting": {
+        "subdomain": "winter-of-code-4",
+        "reg_ends_at": "2026-10-13T18:30:00.000Z"
+      }
+    },
+    {
+      "uuid": "69bc320cd0ff44f4bf84e9facd534485",
+      "name": "CodeStorm 2026: FutureForge",
+      "slug": "codestorm-futureforge",
+      "starts_at": "2026-07-31T18:30:00.000Z",
+      "ends_at": "2026-10-15T18:29:00.000Z",
+      "is_online": true,
+      "city": null,
+      "country": null,
+      "team_min": 1,
+      "team_size": 6,
+      "themes": [
+        {
+          "uuid": "6d18c73b2609447098e347382e471d44",
+          "name": "Design"
+        },
+        {
+          "uuid": "9d287d0c0870485a838efa02d5ecc06b",
+          "name": "AI"
+        },
+        {
+          "uuid": "7804fc6c034546d593c419e8f792c7f8",
+          "name": "Future Mobility"
+        }
+      ],
+      "hackathon_setting": {
+        "subdomain": "codestorm-futureforge",
+        "reg_ends_at": "2026-10-14T18:29:00.000Z"
+      }
+    },
+    {
+      "uuid": "9355584ad9e543b5a90f602a27a596b4",
+      "name": "BIOS V2",
+      "slug": "biosv2",
+      "starts_at": "2026-10-30T06:30:00.000Z",
+      "ends_at": "2026-11-01T06:30:00.000Z",
+      "is_online": false,
+      "city": "Patiala",
+      "country": "India",
+      "team_min": 4,
+      "team_size": 4,
+      "themes": [
+        {
+          "uuid": "a15061e97ec148009d7e3993eafe047b",
+          "name": "No Restrictions"
+        }
+      ],
+      "hackathon_setting": {
+        "subdomain": "biosv2",
+        "reg_ends_at": "2026-10-14T18:30:00.000Z"
+      }
+    }
+  ]
+}

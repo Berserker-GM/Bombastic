@@ -2,17 +2,22 @@
 
 import asyncio
 import re
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
-from radar.collectors.base import Collector, RawEvent
+from radar.collectors.base import Collector, CollectResult, RawEvent
 from radar.models.enums import EventCategory, EventMode, Lifecycle
 
 HACKATHONS_URL = "https://devpost.com/api/hackathons"
 _SOURCE_NAME = "devpost"
 _TIMEOUT_SECONDS = 30.0
+_MAX_PAGES = 30
+_PAGE_INTERVAL_SECONDS = 1.0
+_PAGE_CAP_WARNING = "stopped after 30 pages"
+SleepFn = Callable[[float], Awaitable[None]]
 _TAGS = re.compile(r"<[^>]*>")
 _MONEY = re.compile(
     r"(?P<currency>₹|(?<![A-Za-z])Rs\.?(?![A-Za-z])|(?<![A-Za-z])INR(?![A-Za-z])"
@@ -27,6 +32,7 @@ _PERIOD = re.compile(
     r"(?:(?P<end_month>[A-Za-z]{3})\s+)?"
     r"(?P<end_day>\d{1,2}),\s*(?P<end_year>\d{4})$"
 )
+_SINGLE = re.compile(r"^(?P<month>[A-Za-z]{3})\s+(?P<day>\d{1,2}),\s*(?P<year>\d{4})$")
 _MONTHS = {
     "jan": 1,
     "feb": 2,
@@ -41,26 +47,66 @@ _MONTHS = {
     "nov": 11,
     "dec": 12,
 }
-_INR = frozenset({"₹", "rs", "rs.", "inr"})
+_CURRENCY = {
+    "₹": "INR",
+    "rs": "INR",
+    "rs.": "INR",
+    "inr": "INR",
+    "$": "USD",
+    "usd": "USD",
+}
+_OPEN_STATE = {
+    "open": Lifecycle.REGISTRATION_OPEN,
+    "upcoming": Lifecycle.UPCOMING,
+    "ended": Lifecycle.REGISTRATION_CLOSED,
+}
+_DATE_CONFIDENCE = {
+    "registration_deadline": 0.6,
+    "start_at": 0.6,
+    "end_at": 0.6,
+}
 
 
 class DevpostCollector(Collector):
     min_expected = 1
 
-    def __init__(self, *, now: datetime | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        now: datetime | None = None,
+        sleep: SleepFn | None = None,
+    ) -> None:
         self._now = now
+        self._sleep = asyncio.sleep if sleep is None else sleep
+        self._page_cap_hit = False
 
     async def fetch(self) -> list[RawEvent]:
+        self._page_cap_hit = False
+        now = self._now if self._now is not None else datetime.now(UTC)
+        events: list[RawEvent] = []
         async with httpx.AsyncClient(
             timeout=_TIMEOUT_SECONDS,
             follow_redirects=True,
             headers={"Accept": "application/json", "User-Agent": "radar/0.1"},
         ) as client:
-            response = await client.get(HACKATHONS_URL)
-            response.raise_for_status()
-            payload = response.json()
-        now = self._now if self._now is not None else datetime.now(UTC)
-        return events_from_listing(payload, now=now)
+            for page in range(1, _MAX_PAGES + 1):
+                if page > 1:
+                    await self._sleep(_PAGE_INTERVAL_SECONDS)
+                response = await client.get(HACKATHONS_URL, params=_page_params(page))
+                response.raise_for_status()
+                batch = events_from_listing(response.json(), now=now)
+                if not batch:
+                    break
+                events.extend(batch)
+            else:
+                self._page_cap_hit = True
+        return events
+
+    def _from_events(self, events: list[RawEvent]) -> CollectResult:
+        result = super()._from_events(events)
+        if self._page_cap_hit and result.status == "ok":
+            return result.model_copy(update={"warning": _PAGE_CAP_WARNING})
+        return result
 
 
 def events_from_listing(payload: dict[str, Any], *, now: datetime) -> list[RawEvent]:
@@ -73,32 +119,74 @@ def events_from_listing(payload: dict[str, Any], *, now: datetime) -> list[RawEv
 
 
 def parse_prize_amount_inr(text: str | None) -> int | None:
+    parsed = parse_prize(text)
+    if parsed is None:
+        return None
+    amount, currency = parsed
+    if currency != "INR" or isinstance(amount, float):
+        return None
+    return amount
+
+
+def parse_prize(text: str | None) -> tuple[int | float, str] | None:
+    plain = plain_prize_text(text)
+    if plain is None:
+        return None
+    match = _MONEY.search(plain)
+    if match is None:
+        return None
+    currency = _CURRENCY.get(match.group("currency").casefold())
+    if currency is None:
+        return None
+    fraction = match.group("fraction")
+    whole = match.group("amount").replace(",", "")
+    if fraction is None or set(fraction) <= {"0"}:
+        return (int(whole), currency)
+    return (float(f"{whole}.{fraction}"), currency)
+
+
+def plain_prize_text(text: str | None) -> str | None:
     if text is None:
         return None
     cleaned = _TAGS.sub("", text).replace("\xa0", " ")
-    match = _MONEY.search(cleaned)
-    if match is None:
-        return None
-    if match.group("currency").casefold() not in _INR:
-        return None
-    fraction = match.group("fraction")
-    if fraction is not None and set(fraction) != {"0"}:
-        return None
-    return int(match.group("amount").replace(",", ""))
+    collapsed = " ".join(cleaned.split())
+    return collapsed or None
 
 
 def parse_submission_period(
     text: str,
 ) -> tuple[datetime | None, datetime | None]:
-    match = _PERIOD.fullmatch(text.strip())
+    stripped = text.strip()
+    single = _SINGLE.fullmatch(stripped)
+    if single is not None:
+        day = _calendar_date(
+            int(single.group("year")),
+            single.group("month"),
+            single.group("day"),
+        )
+        if day is None:
+            return (None, None)
+        return (day, day)
+    match = _PERIOD.fullmatch(stripped)
     if match is None:
         return (None, None)
     end_year = int(match.group("end_year"))
-    start_year = match.group("start_year")
-    year = end_year if start_year is None else int(start_year)
     end_month_name = match.group("end_month") or match.group("start_month")
-    start = _calendar_date(year, match.group("start_month"), match.group("start_day"))
     end = _calendar_date(end_year, end_month_name, match.group("end_day"))
+    start_year_text = match.group("start_year")
+    start_year = end_year if start_year_text is None else int(start_year_text)
+    start = _calendar_date(
+        start_year, match.group("start_month"), match.group("start_day")
+    )
+    if (
+        start is not None
+        and end is not None
+        and start > end
+        and start_year_text is None
+    ):
+        start = _calendar_date(
+            end_year - 1, match.group("start_month"), match.group("start_day")
+        )
     if start is None or end is None or start > end:
         return (None, None)
     return (start, end)
@@ -109,7 +197,7 @@ def _event(hackathon: Any, *, now: datetime) -> RawEvent:
         raise TypeError("hackathon is not an object")
     start_at, end_at = _period(hackathon)
     location = _location(hackathon)
-    prize_text = _optional_str(hackathon, "prize_amount")
+    prize_text = plain_prize_text(_optional_str(hackathon, "prize_amount"))
     return RawEvent(
         source_name=_SOURCE_NAME,
         title=_required_str(hackathon, "title"),
@@ -128,19 +216,35 @@ def _event(hackathon: Any, *, now: datetime) -> RawEvent:
             hackathon, "eligibility_requirement_invite_only_description"
         ),
         tags=_themes(hackathon),
-        lifecycle=_lifecycle(start_at, end_at, now),
+        lifecycle=_lifecycle(hackathon, start_at, end_at, now),
+        confidence=dict(_DATE_CONFIDENCE),
+        extra=_extra(prize_text),
     )
 
 
+def _page_params(page: int) -> list[tuple[str, str]]:
+    return [("status[]", "open"), ("status[]", "upcoming"), ("page", str(page))]
+
+
 def _period(hackathon: dict[str, Any]) -> tuple[datetime | None, datetime | None]:
-    if "submission_period_dates" not in hackathon:
-        return (None, None)
-    value = hackathon["submission_period_dates"]
-    if value is None:
-        return (None, None)
+    value = hackathon.get("submission_period_dates")
     if not isinstance(value, str):
-        raise TypeError("submission_period_dates is not a string")
+        return (None, None)
     return parse_submission_period(value)
+
+
+def _extra(prize_text: str | None) -> dict[str, Any]:
+    extra: dict[str, Any] = {
+        "date_precision": "date",
+        "deadline_kind": "submission_end",
+    }
+    parsed = parse_prize(prize_text)
+    if parsed is None:
+        return extra
+    amount, currency = parsed
+    extra["prize_amount"] = amount
+    extra["prize_currency"] = currency
+    return extra
 
 
 def _location(hackathon: dict[str, Any]) -> str | None:
@@ -182,6 +286,19 @@ def _themes(hackathon: dict[str, Any]) -> list[str] | None:
 
 
 def _lifecycle(
+    hackathon: dict[str, Any],
+    start_at: datetime | None,
+    end_at: datetime | None,
+    now: datetime,
+) -> Lifecycle:
+    if "open_state" in hackathon and hackathon["open_state"] is not None:
+        state = hackathon["open_state"]
+        if isinstance(state, str) and state.strip():
+            return _OPEN_STATE.get(state.strip().casefold(), Lifecycle.UNKNOWN)
+    return _lifecycle_from_dates(start_at, end_at, now)
+
+
+def _lifecycle_from_dates(
     start_at: datetime | None,
     end_at: datetime | None,
     now: datetime,

@@ -1,0 +1,224 @@
+{
+  "data": {
+    "current_page": 1,
+    "per_page": 18,
+    "total": 6720,
+    "data": [
+      {
+        "id": 1369976,
+        "public_url": "hackathons/iot-hackathon-v-prayukti25-bannari-amman-institute-of-technology-1369976",
+        "title": "IoT Hackathon",
+        "region": "offline",
+        "details": "<div class=\"\">\n<div class=\"\">\n<div class=\"\">\n<div class=\"\">\n<div class=\"\">\n<article class=\"\" dir=\"auto\" data-testid=\"conversation-turn-19\" data-scroll-anchor=\"true\">\n<div class=\"\">\n<div class=\"\">\n<div class=\"\">\n<div class=\"\">\n<div class=\"\">\n<div class=\"\" dir=\"auto\" data-message-a",
+        "organisation": {
+          "id": 122774,
+          "name": "Bannari Amman Institute of Technology"
+        },
+        "filters": [
+          {
+            "id": 399,
+            "name": "College Festival",
+            "type": "category"
+          },
+          {
+            "id": 406,
+            "name": "Hackathon",
+            "type": "category"
+          },
+          {
+            "id": 422,
+            "name": "Engineering Students",
+            "type": "eligible"
+          },
+          {
+            "id": 424,
+            "name": "Postgraduate",
+            "type": "eligible"
+          },
+          {
+            "id": 426,
+            "name": "Undergraduate",
+            "type": "eligible"
+          }
+        ],
+        "required_skills": [
+          {
+            "id": 646049,
+            "skill": "Embedded Systems Design"
+          },
+          {
+            "id": 647050,
+            "skill": "Project Management"
+          },
+          {
+            "id": 643462,
+            "skill": "Collaboration Skills"
+          },
+          {
+            "id": 644111,
+            "skill": "Internet of Things (IoT)"
+          },
+          {
+            "id": 1373,
+            "skill": "Problem Solving"
+          }
+        ],
+        "tags": [],
+        "end_date": "2025-02-08T09:00:00+05:30",
+        "registerCount": 30,
+        "regnRequirements": {
+          "start_regn_dt": "2025-01-21T00:00:00+05:30",
+          "end_regn_dt": "2025-02-04T23:59:51+05:30",
+          "min_team_size": 2,
+          "max_team_size": 4
+        }
+      },
+      {
+        "id": 593666,
+        "public_url": "hackathons/cyberheist-capture-the-flag-ctf-siws-college-593666",
+        "title": "Cyberheist - Capture the Flag (CTF)",
+        "region": "offline",
+        "details": "<p>Join our upcoming CTF (Capture the Flag) event and compete for cash prizes worth INR 6000 and an exclusive internship opportunity!</p>",
+        "organisation": {
+          "id": 140402,
+          "name": "S.I.W.S College"
+        },
+        "filters": [
+          {
+            "id": 394,
+            "name": "Strategy",
+            "type": "category"
+          },
+          {
+            "id": 399,
+            "name": "College Festival",
+            "type": "category"
+          },
+          {
+            "id": 406,
+            "name": "Hackathon",
+            "type": "category"
+          },
+          {
+            "id": 412,
+            "name": "Coding Challenge",
+            "type": "category"
+          },
+          {
+            "id": 417,
+            "name": "Treasure Hunt",
+            "type": "category"
+          },
+          {
+            "id": 428,
+            "name": "Arts & Science",
+            "type": "domain"
+          },
+          {
+            "id": 430,
+            "name": "Engineering",
+            "type": "domain"
+          },
+          {
+            "id": 431,
+            "name": "Others",
+            "type": "domain"
+          },
+          {
+            "id": 422,
+            "name": "Engineering Students",
+            "type": "eligible"
+          },
+          {
+            "id": 423,
+            "name": "MBA Students",
+            "type": "eligible"
+          },
+          {
+            "id": 424,
+            "name": "Postgraduate",
+            "type": "eligible"
+          },
+          {
+            "id": 426,
+            "name": "Undergraduate",
+            "type": "eligible"
+          }
+        ],
+        "required_skills": [],
+        "tags": [],
+        "end_date": "2023-01-29T19:35:00+05:30",
+        "registerCount": 8,
+        "regnRequirements": {
+          "start_regn_dt": "2023-01-22T00:00:00+05:30",
+          "end_regn_dt": "2023-01-27T11:00:00+05:30",
+          "min_team_size": 1,
+          "max_team_size": 4
+        }
+      },
+      {
+        "id": 1437224,
+        "public_url": "hackathons/code-uncode-kirori-mal-college-kmc-du-delhi-1437224",
+        "title": "Code Uncode",
+        "region": "offline",
+        "details": "<li>Each question is worth 20 points, and participants will have 60 minutes to complete all 5 questions.</li>",
+        "organisation": {
+          "id": 756,
+          "name": "Kirori Mal College (KMC), University of Delhi, Delhi"
+        },
+        "filters": [
+          {
+            "id": 412,
+            "name": "Coding Challenge",
+            "type": "category"
+          },
+          {
+            "id": 422,
+            "name": "Engineering Students",
+            "type": "eligible"
+          },
+          {
+            "id": 423,
+            "name": "MBA Students",
+            "type": "eligible"
+          },
+          {
+            "id": 424,
+            "name": "Postgraduate",
+            "type": "eligible"
+          },
+          {
+            "id": 426,
+            "name": "Undergraduate",
+            "type": "eligible"
+          }
+        ],
+        "required_skills": [
+          {
+            "id": 645719,
+            "skill": "C++ Programming Language"
+          },
+          {
+            "id": 644162,
+            "skill": "Java"
+          },
+          {
+            "id": 1373,
+            "skill": "Problem Solving"
+          }
+        ],
+        "tags": [
+          "Hackathon On D2C"
+        ],
+        "end_date": "2025-03-27T00:00:00+05:30",
+        "registerCount": 52,
+        "regnRequirements": {
+          "start_regn_dt": "2025-03-21T18:00:00+05:30",
+          "end_regn_dt": "2025-03-24T19:15:29+05:30",
+          "min_team_size": 1,
+          "max_team_size": 1
+        }
+      }
+    ]
+  }
+}
