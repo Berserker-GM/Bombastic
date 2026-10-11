@@ -45,6 +45,10 @@ class CalendarService(Protocol):
         self, session: Session, user_id: str, event: Event
     ) -> CalendarLink | None: ...
 
+    def add_to_calendar(
+        self, session: Session, user_id: str, event_id: int
+    ) -> CalendarLink | None: ...
+
     def delete(self, session: Session, user_id: str, event: Event) -> None: ...
 
 

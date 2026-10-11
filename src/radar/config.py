@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./radar.db"
     log_level: str = "INFO"
+    api_token: str | None = None
     clist_api_key: str | None = None
     clist_username: str | None = None
     google_token_path: str = "token.json"

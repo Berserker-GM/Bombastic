@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.13.5",
     "pydantic-settings>=2",
     "sqlalchemy>=2,<3",
+    "fastapi>=0.143.0",
 ]
 
 [dependency-groups]
