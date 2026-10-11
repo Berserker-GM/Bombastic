@@ -1,0 +1,31 @@
+{
+  "is_actionable": true,
+  "category": "college",
+  "title": "Workshop",
+  "summary": null,
+  "event_date": "2026-10-21",
+  "registration_deadline": null,
+  "submission_deadline": null,
+  "other_dates": [
+    {
+      "type": "registration_opens",
+      "label": "Registration opens",
+      "at": "2026-10-14"
+    }
+  ],
+  "deadline_changed": null,
+  "mentions_extension": null,
+  "location": null,
+  "eligibility": null,
+  "confidence": 0.85,
+  "evidence": {
+    "event_date": {
+      "quote": "workshop is on 21 October",
+      "confidence": 0.9
+    },
+    "other_dates.0": {
+      "quote": "Registration opens on 14 October",
+      "confidence": 0.7
+    }
+  }
+}

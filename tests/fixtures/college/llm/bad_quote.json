@@ -1,0 +1,29 @@
+{
+  "is_actionable": true,
+  "category": "college",
+  "title": "Workshop on October 15",
+  "summary": null,
+  "event_date": "2026-10-15",
+  "registration_deadline": "2026-09-01",
+  "submission_deadline": null,
+  "other_dates": [],
+  "deadline_changed": null,
+  "mentions_extension": null,
+  "location": "main auditorium",
+  "eligibility": null,
+  "confidence": 0.4,
+  "evidence": {
+    "event_date": {
+      "quote": "workshop on October 15",
+      "confidence": 0.95
+    },
+    "registration_deadline": {
+      "quote": "submit the form by 1 September",
+      "confidence": 0.99
+    },
+    "location": {
+      "quote": "main auditorium",
+      "confidence": 0.8
+    }
+  }
+}

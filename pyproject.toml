@@ -7,6 +7,7 @@ dependencies = [
     "alembic>=1.20.0",
     "google-api-python-client>=2.201.0",
     "google-auth-oauthlib>=1.5.0",
+    "beautifulsoup4>=4.12",
     "httpx>=0.28.1",
     "pydantic>=2.13.5",
     "pydantic-settings>=2",
@@ -27,7 +28,7 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "live: calls Google Calendar; set RADAR_LIVE_TESTS=1 to run",
+    "live: calls Google Calendar or the configured LLM; set RADAR_LIVE_TESTS=1 to run",
 ]
 
 [tool.ruff]

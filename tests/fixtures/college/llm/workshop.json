@@ -1,0 +1,25 @@
+{
+  "is_actionable": true,
+  "category": "college",
+  "title": "Workshop on October 15",
+  "summary": "Department workshop in the main auditorium.",
+  "event_date": "2026-10-15",
+  "registration_deadline": null,
+  "submission_deadline": null,
+  "other_dates": [],
+  "deadline_changed": null,
+  "mentions_extension": null,
+  "location": "main auditorium",
+  "eligibility": null,
+  "confidence": 0.9,
+  "evidence": {
+    "event_date": {
+      "quote": "workshop on October 15",
+      "confidence": 0.95
+    },
+    "location": {
+      "quote": "main auditorium",
+      "confidence": 0.8
+    }
+  }
+}

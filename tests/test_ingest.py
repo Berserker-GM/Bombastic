@@ -8,11 +8,12 @@ from sqlalchemy import event as sa_event
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from radar.collectors.base import CollectResult, RawEvent
+from radar.collectors.base import CollectResult, EvidenceItem, RawEvent
 from radar.models import (
     Base,
     Event,
     EventCategory,
+    EventEvidence,
     EventVersion,
     HealthStatus,
     Importance,
@@ -266,6 +267,39 @@ def test_fingerprint_matches_title_punctuation(session: Session) -> None:
     assert [event.id for event in second.changed] == [first.new[0].id]
     assert _count(session, Event) == 1
     assert first.new[0].fingerprint == second.changed[0].fingerprint
+
+
+def test_evidence_rows_are_stored_once(session: Session) -> None:
+    source = _source(session)
+    raw = _raw(
+        evidence=[
+            EvidenceItem(
+                field="registration_deadline",
+                source_url="https://college.example/notices/1",
+                source_text="deadline is 15 October",
+                confidence=0.5,
+            )
+        ]
+    )
+
+    created = ingest(session, source, [raw])
+    rows = session.scalars(select(EventEvidence)).all()
+
+    assert len(created.new) == 1
+    assert len(rows) == 1
+    assert rows[0].event_id == created.new[0].id
+    assert rows[0].field == "registration_deadline"
+    assert rows[0].source_url == "https://college.example/notices/1"
+    assert rows[0].source_text == "deadline is 15 October"
+    assert rows[0].confidence == 0.5
+    assert rows[0].captured_at is not None
+
+    again = ingest(session, source, [raw])
+
+    assert again.new == []
+    assert again.changed == []
+    assert len(again.unchanged) == 1
+    assert len(session.scalars(select(EventEvidence)).all()) == 1
 
 
 def test_unreachable_does_not_touch_events(session: Session) -> None:

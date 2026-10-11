@@ -1,0 +1,127 @@
+{
+  "hackathons": [
+    {
+      "id": 30992,
+      "title": "Build, Ship, Shape: Amazon Developer Hackathon",
+      "displayed_location": {
+        "icon": "globe",
+        "location": "Online"
+      },
+      "open_state": "open",
+      "thumbnail_url": "//d112y698adiu2z.cloudfront.net/photos/production/challenge_thumbnails/005/173/047/datas/medium_square.png",
+      "analytics_identifier": "Build, Ship, Shape: Amazon Developer Hackathon (30992)",
+      "url": "https://amazonappdev2026.devpost.com/",
+      "time_left_to_submission": "13 days left",
+      "submission_period_dates": "Aug 31 - Oct 23, 2026",
+      "themes": [
+        {
+          "id": 6,
+          "name": "Machine Learning/AI"
+        },
+        {
+          "id": 22,
+          "name": "Open Ended"
+        },
+        {
+          "id": 11,
+          "name": "Productivity"
+        }
+      ],
+      "prize_amount": "$<span data-currency-value>138,000</span>",
+      "prizes_counts": {
+        "cash": 12,
+        "other": 0
+      },
+      "registrations_count": 53108,
+      "featured": false,
+      "organization_name": "Amazon",
+      "winners_announced": false,
+      "submission_gallery_url": "https://amazonappdev2026.devpost.com/project-gallery",
+      "start_a_submission_url": "https://amazonappdev2026.devpost.com/challenges/start_a_submission",
+      "invite_only": false,
+      "eligibility_requirement_invite_only_description": null,
+      "managed_by_devpost_badge": true
+    },
+    {
+      "id": 31481,
+      "title": "Multimodal AI Hackathon 2026",
+      "displayed_location": {
+        "icon": "globe",
+        "location": "Online"
+      },
+      "open_state": "open",
+      "thumbnail_url": "//d112y698adiu2z.cloudfront.net/photos/production/challenge_thumbnails/005/366/176/datas/medium_square.jpg",
+      "analytics_identifier": "Multimodal AI Hackathon 2026 (31481)",
+      "url": "https://multimodal-ai-hackathon-2026-7.devpost.com/",
+      "time_left_to_submission": "4 days left",
+      "submission_period_dates": "Sep 29 - Oct 14, 2026",
+      "themes": [
+        {
+          "id": 6,
+          "name": "Machine Learning/AI"
+        }
+      ],
+      "prize_amount": "₹ <span data-currency-value>100,000</span>",
+      "prizes_counts": {
+        "cash": 8,
+        "other": 0
+      },
+      "registrations_count": 3296,
+      "featured": false,
+      "organization_name": "Kamand Prompt, IIT Mandi",
+      "winners_announced": false,
+      "submission_gallery_url": "https://multimodal-ai-hackathon-2026-7.devpost.com/project-gallery",
+      "start_a_submission_url": "https://multimodal-ai-hackathon-2026-7.devpost.com/challenges/start_a_submission",
+      "invite_only": false,
+      "eligibility_requirement_invite_only_description": null,
+      "managed_by_devpost_badge": false
+    },
+    {
+      "id": 31503,
+      "title": "Life After Code",
+      "displayed_location": {
+        "icon": "globe",
+        "location": "Online"
+      },
+      "open_state": "open",
+      "thumbnail_url": "//d112y698adiu2z.cloudfront.net/photos/production/challenge_thumbnails/005/376/754/datas/medium_square.png",
+      "analytics_identifier": "Life After Code (31503)",
+      "url": "https://gitlab-transcend.devpost.com/",
+      "time_left_to_submission": "16 days left",
+      "submission_period_dates": "Oct 05 - 27, 2026",
+      "themes": [
+        {
+          "id": 2,
+          "name": "DevOps"
+        },
+        {
+          "id": 6,
+          "name": "Machine Learning/AI"
+        },
+        {
+          "id": 11,
+          "name": "Productivity"
+        }
+      ],
+      "prize_amount": "$<span data-currency-value>45,000</span>",
+      "prizes_counts": {
+        "cash": 9,
+        "other": 0
+      },
+      "registrations_count": 1584,
+      "featured": true,
+      "organization_name": "GitLab",
+      "winners_announced": false,
+      "submission_gallery_url": "https://gitlab-transcend.devpost.com/project-gallery",
+      "start_a_submission_url": "https://gitlab-transcend.devpost.com/challenges/start_a_submission",
+      "invite_only": false,
+      "eligibility_requirement_invite_only_description": null,
+      "managed_by_devpost_badge": true
+    }
+  ],
+  "meta": {
+    "total_count": 14033,
+    "per_page": 9,
+    "fuzzy": false
+  }
+}

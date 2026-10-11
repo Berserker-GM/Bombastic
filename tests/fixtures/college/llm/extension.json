@@ -1,0 +1,21 @@
+{
+  "is_actionable": true,
+  "category": "college",
+  "title": "GDGoC BMSIT&M Recruitment: Deadline Extended",
+  "summary": "Application deadline extended to 10 October, 11:59 PM.",
+  "event_date": null,
+  "registration_deadline": "2026-10-10T23:59:00",
+  "submission_deadline": null,
+  "other_dates": [],
+  "deadline_changed": true,
+  "mentions_extension": true,
+  "location": null,
+  "eligibility": null,
+  "confidence": 0.88,
+  "evidence": {
+    "registration_deadline": {
+      "quote": "extended to 10th October, 11:59 PM",
+      "confidence": 0.91
+    }
+  }
+}

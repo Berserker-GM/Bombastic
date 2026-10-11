@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     google_token_path: str = "token.json"
     google_token_json: str | None = None
     google_calendar_id: str = "primary"
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    anthropic_api_key: str | None = None
+    openai_api_key: str | None = None
 
 
 def get_settings() -> Settings:

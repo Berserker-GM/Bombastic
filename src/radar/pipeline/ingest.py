@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from radar.collectors.base import CollectResult, RawEvent
 from radar.models import (
     Event,
+    EventEvidence,
     EventVersion,
     Importance,
     Lifecycle,
@@ -149,6 +150,7 @@ def _ingest_one(
         return
     _apply(existing, raw, digest, fingerprint, now)
     _add_version(session, existing, now, changed_fields, snapshot)
+    _persist_evidence(session, existing, raw, now)
     result.changed.append(existing)
 
 
@@ -200,8 +202,28 @@ def _insert(
         snapshot,
         importance=Importance.MINOR,
     )
+    _persist_evidence(session, event, raw, now)
     session.flush()
     result.new.append(event)
+
+
+def _persist_evidence(
+    session: Session,
+    event: Event,
+    raw: RawEvent,
+    now: datetime,
+) -> None:
+    for item in raw.evidence:
+        session.add(
+            EventEvidence(
+                event=event,
+                field=item.field,
+                source_url=item.source_url,
+                source_text=item.source_text,
+                confidence=item.confidence,
+                captured_at=_as_utc(item.captured_at) or now,
+            )
+        )
 
 
 def _apply(
