@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -170,6 +171,10 @@ class ScanAccepted(BaseModel):
 
 class ScanNowBody(BaseModel):
     sources: list[str] | None = None
+
+
+class HealthOut(BaseModel):
+    ok: Literal[True]
 
 
 def _auth(
@@ -364,9 +369,40 @@ def _execute_scan(
         run_scan(session, sources, scan_id=scan_id)
 
 
+_TAURI_ORIGINS = (
+    "http://tauri.localhost",
+    "tauri://localhost",
+    "http://localhost:1420",
+)
+
+
+def cors_allow_origins() -> list[str]:
+    origins = list(_TAURI_ORIGINS)
+    for part in get_settings().cors_origins.split(","):
+        origin = part.strip()
+        if origin and origin != "*":
+            origins.append(origin)
+    return origins
+
+
+public = APIRouter()
+
+
+@public.get("/health", response_model=HealthOut)
+def get_health() -> HealthOut:
+    return HealthOut(ok=True)
+
+
 def create_app(session_factory: sessionmaker[Session] | None = None) -> FastAPI:
     app = FastAPI(title="radar")
     app.state.session_factory = session_factory or SessionLocal
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_allow_origins(),
+        allow_methods=["GET", "POST", "PUT"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+    app.include_router(public)
     app.include_router(router)
     return app
 

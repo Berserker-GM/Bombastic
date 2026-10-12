@@ -142,6 +142,84 @@ def test_feed_requires_a_bearer_token(client: TestClient) -> None:
     )
 
 
+def test_health_requires_no_auth(client: TestClient) -> None:
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    denied = client.get("/health", headers={"Authorization": "Bearer wrong"})
+    assert denied.status_code == 200
+    assert denied.json() == {"ok": True}
+
+
+@pytest.mark.parametrize(
+    "origin",
+    ["http://tauri.localhost", "tauri://localhost", "http://localhost:1420"],
+)
+def test_preflight_from_an_allowed_origin_returns_cors_headers(
+    client: TestClient, origin: str
+) -> None:
+    response = client.options(
+        "/health",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    assert response.headers["access-control-allow-origin"] != "*"
+    methods = response.headers["access-control-allow-methods"]
+    assert "GET" in methods
+    assert "POST" in methods
+    assert "PUT" in methods
+    allowed = response.headers["access-control-allow-headers"].lower()
+    assert "authorization" in allowed
+    assert "content-type" in allowed
+
+
+def test_preflight_from_a_random_origin_does_not_return_cors_headers(
+    client: TestClient,
+) -> None:
+    response = client.options(
+        "/feed",
+        headers={
+            "Origin": "https://evil.example",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_cors_origins_env_extends_the_allowlist(
+    session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        " https://desk.example , *, https://other.example ",
+    )
+    app = create_app(session_factory)
+    with TestClient(app) as test_client:
+        allowed = test_client.options(
+            "/health",
+            headers={
+                "Origin": "https://desk.example",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        starred = test_client.options(
+            "/health",
+            headers={
+                "Origin": "https://evil.example",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "https://desk.example"
+    assert "access-control-allow-origin" not in starred.headers
+
+
 def test_ignore_removes_the_event_and_save_puts_it_in_saved(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
