@@ -28,6 +28,7 @@ jobs:
         run: uv run python -m radar.cli scan-all
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLIST_USERNAME: ${{ secrets.CLIST_USERNAME }}
           CLIST_API_KEY: ${{ secrets.CLIST_API_KEY }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
           GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
